@@ -1,0 +1,242 @@
+﻿// See https://aka.ms/new-console-template for more information
+using System.Reflection;
+using System.Text;
+
+using Serilog;
+using utauPlugin;
+
+using OpenUtau.Api;
+using OpenUtau.Core;
+using OpenUtau.Core.Ustx;
+
+using PhonemizerOnUtau;
+using OpenUtau.Classic;
+
+try {
+    //Print application version
+    string version = Assembly.GetExecutingAssembly().GetName().Version.ToString();
+    Console.WriteLine($"PhonemizerOnUtau {version}");
+
+    //initialization
+    Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+    var arg = Environment.GetCommandLineArgs();
+
+    //Check command line arguments
+    if (arg.Length < 2)
+    {
+        Console.WriteLine("Please launch this plugin from utau editor");
+        Console.ReadLine();
+        return;
+    }
+
+    //Load phonemizers
+    var phonemizerFactories = PhonemizerLoader.LoadAllPhonemizers()?.ToList() ?? null;
+    
+    if(phonemizerFactories == null || phonemizerFactories.Count == 0) {
+        Console.WriteLine("No phonemizer found. Please put the phonemizer dlls in the \"plugins\" folder under PhonemizerOnUtau.");
+        Console.ReadLine();
+        return;
+    }
+
+    //Load tmp ust project
+    UtauPlugin plugin = new UtauPlugin(arg[1]);
+    plugin.Input();
+
+    //Load voicebank
+    var singerPath = plugin.VoiceDir;
+    Console.WriteLine($"Singer directory: {singerPath}");
+    var voicebank = new Voicebank() { 
+        File = Path.Combine(singerPath, "character.txt"), 
+        BasePath = Path.Combine(singerPath, "..") 
+    };
+    VoicebankLoader.LoadVoicebank(voicebank);
+    var singer = new ClassicSinger(voicebank);
+    singer.EnsureLoaded();
+
+    //Parse notes and tempos
+    var myNotes = UtauUtil.PluginNotesToUNotes(plugin);
+    var tempos = UtauUtil.GetTempoList(plugin, myNotes);
+    var timeAxis = new TimeAxis();
+    timeAxis.BuildSegments(new UProject() { tempos = tempos });
+    Dictionary<int, MyNote> NoteByPosition = myNotes.ToDictionary(n => n.position);
+
+    //Ask the user which phonemizer to use
+    var phonemizerGroups = phonemizerFactories.GroupBy(factory => factory.language)
+        .OrderBy(group => group.Key)
+        .ToList();
+    PhonemizerFactory phonemizerSelected = null;
+    bool userSelect = false;
+    while (!userSelect) {
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("Phonemizer languages:");
+        Console.ForegroundColor= ConsoleColor.White;
+        foreach(var g in phonemizerGroups) {
+            Console.WriteLine($"{g.Key ?? "General"}");
+        }
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("Please input a phonemizer language, or the tag of a phonemizer:");
+        Console.ForegroundColor = ConsoleColor.White;
+        string input = Console.ReadLine()?.Trim().ToLower() ?? "";
+        if (TryParsePhonemizerGroup(phonemizerGroups, input, out var phonemizerGroup)) {
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"Phonemizer for language {phonemizerGroup.Key}");
+            Console.ForegroundColor = ConsoleColor.White;
+            foreach(var p in phonemizerGroup) {
+                Console.WriteLine($"{p.ToString()}");
+            }
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("Please input the tag of a phonemizer:");
+            Console.ForegroundColor = ConsoleColor.White;
+            input = Console.ReadLine()?.Trim().ToLower() ?? "";
+        }
+        if (TryParsePhonemizer(phonemizerFactories, input, out var phonemizerParsed)) {
+            phonemizerSelected = phonemizerParsed;
+            userSelect = true;
+            continue;
+        }
+    }
+    Console.WriteLine($"Using phonemizer {phonemizerSelected.ToString()}");
+
+    //Prepare phonemizer input
+    var noteIndexes = new List<int>();
+    var groups = new List<Phonemizer.Note[]>() { };
+    List<MyNote> currentGroup = new List<MyNote>() { };
+    foreach (var note in myNotes) {
+        if (note.IsSlur()) {
+            //Add slur note into the current group
+            currentGroup.Add(note);
+        } else {
+            //End the previous group and start a new one
+            if (currentGroup.Count > 0) {
+                groups.Add(currentGroup.Select(n => n.ToPhonemizerNote()).ToArray());
+            }
+            currentGroup.Clear();
+            currentGroup.Add(note);
+        }
+    }
+    if(currentGroup.Count > 0) {
+        groups.Add(currentGroup.Select(n => n.ToPhonemizerNote()).ToArray());
+    }
+
+    //Run phonemizer
+    Phonemizer phonemizer = phonemizerSelected.Create();
+    phonemizer.SetSinger(singer);
+    phonemizer.SetTiming(timeAxis);
+    var resultNotes = new List<MyNote>() { };
+    var currTick = 0;
+    for (var i = 0; i < groups.Count; i++) {
+        var group = groups[i];
+        var result = phonemizer.Process(
+            groups[i],
+            i > 0 ? groups[i - 1].First() : null,
+            i < groups.Count - 1 ? groups[i + 1].First() : null,
+            (i > 0 && IsNeighbor(groups[i - 1], groups[i])) ? groups[i - 1].First() : null,
+            (i < groups.Count - 1 && IsNeighbor(groups[i], groups[i + 1])) ? groups[i + 1].First() : null,
+            i > 0 ? groups[i - 1] : null);
+        foreach(var phoneme in result.phonemes) {
+            //ensure each phoneme is at least 5 ticks
+            int position = Math.Max(phoneme.position + group[0].position, currTick + 5);
+            int duration = Math.Max(group[^1].position + group[^1].duration - position, 5);
+            var currNote = new MyNote() {
+                position = position,
+                duration = duration,
+                lyric = phoneme.phoneme,
+                tone = NoteByPosition[group[0].position].tone,
+            };
+            resultNotes.Add(currNote);
+        }
+    }
+    //Fix overlapping notes
+    foreach (var pair in resultNotes.Zip(resultNotes.Skip(1))) {
+        if(pair.First.end > pair.Second.position) {
+            pair.First.duration = pair.Second.position - pair.First.position;
+        }
+    }
+    //Determine the pitch for each phoneme
+    //Currently we use the middle point on time axis of each phoneme.
+    //If it belongs to a note's time range, the phoneme use the note's tone
+    //otherwise it use the note it belongs to.
+    int inputNoteIndex = 0;
+    foreach (var resultNote in resultNotes) {
+        int middlePoint = resultNote.position + resultNote.duration / 2;
+        while (inputNoteIndex < myNotes.Count && myNotes[inputNoteIndex].end < middlePoint) {
+            inputNoteIndex++;
+        }
+        if (inputNoteIndex >= myNotes.Count) {
+            break;
+        }
+        if (myNotes[inputNoteIndex].position <= middlePoint && myNotes[inputNoteIndex].end >= middlePoint) {
+            resultNote.tone = myNotes[inputNoteIndex].tone;
+        }
+    }
+    if(resultNotes.Count == 0) {
+        return;
+    }
+    //Write to tmp ust
+    int originalPluginNoteCount = plugin.note.Count;
+    bool hasPrev = plugin.note[0].GetNum() == "PREV";
+    bool hasNext = plugin.note[^1].GetNum() == "NEXT";
+    int insertLocation = hasPrev ? 1 : 0;
+    foreach (var pluginNoteIndex in Enumerable.Range(insertLocation, originalPluginNoteCount - (hasNext ? 1 : 0))) {
+        plugin.DeleteNote(pluginNoteIndex);
+    }
+    currTick = 0;
+    if (hasPrev) {
+        plugin.note[0].SetLength(resultNotes[0].position);
+        currTick = resultNotes[0].position;
+    }
+    foreach(var resultNote in resultNotes) {
+        if(resultNote.position > currTick) {
+            //Insert R note
+            InsertPluginNote(resultNote.position - currTick, 60, "R", plugin, insertLocation);
+            insertLocation++;
+        }
+        InsertPluginNote(resultNote.duration, resultNote.tone, resultNote.lyric, plugin, insertLocation);
+        insertLocation++;
+        currTick = resultNote.end;
+    }
+    plugin.Output();
+} catch(Exception e) {
+    Console.WriteLine(e);
+    Console.WriteLine("Press Enter to exit.");
+    Console.ReadLine();
+    return;
+}
+
+bool TryParsePhonemizerGroup(
+    List<IGrouping<string, PhonemizerFactory>> phonemizerGroups, 
+    string input, 
+    out IGrouping<string, PhonemizerFactory>? phonemizerGroup) {
+        phonemizerGroup = phonemizerGroups.FirstOrDefault(g => (g.Key ?? "general").ToLower() == input);
+    if(phonemizerGroup != null) {
+        return true;
+    }
+    return false;
+}
+
+bool TryParsePhonemizer(
+    List<PhonemizerFactory> phonemizers,
+    string input,
+    out PhonemizerFactory? phonemizer) {
+    phonemizer = phonemizers.FirstOrDefault(p => p.tag.ToLower() == input);
+    if(phonemizer != null) {
+        return true;
+    }
+    return false;
+}
+
+bool IsNeighbor(Phonemizer.Note[] prevGroup, Phonemizer.Note[] currGroup) {
+    return prevGroup[^1].position + prevGroup[^1].duration == currGroup[0].position;
+}
+
+void InsertPluginNote(
+    int duration, 
+    int tone, 
+    string lyric, 
+    UtauPlugin plugin, 
+    int insertLocation) {
+    plugin.InsertNote(insertLocation);
+    plugin.note[insertLocation].SetLength(duration);
+    plugin.note[insertLocation].SetNoteNum(tone);
+    plugin.note[insertLocation].SetLyric(lyric);
+}
