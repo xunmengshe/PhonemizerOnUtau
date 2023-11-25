@@ -26,6 +26,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OpenUtau", "OpenUtau\OpenUt
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OpenUtau.Plugin.Builtin", "OpenUtau.Plugin.Builtin\OpenUtau.Plugin.Builtin.csproj", "{D24740E1-CC43-4226-A573-59C013FE50A2}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PhonemizerOnUtau", "PhonemizerOnUtau\PhonemizerOnUtau.csproj", "{D5B06DEB-54AF-4BCA-8C1D-A824904188FC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -48,6 +50,10 @@ Global
 		{D24740E1-CC43-4226-A573-59C013FE50A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D24740E1-CC43-4226-A573-59C013FE50A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D24740E1-CC43-4226-A573-59C013FE50A2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D5B06DEB-54AF-4BCA-8C1D-A824904188FC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D5B06DEB-54AF-4BCA-8C1D-A824904188FC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D5B06DEB-54AF-4BCA-8C1D-A824904188FC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D5B06DEB-54AF-4BCA-8C1D-A824904188FC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
