@@ -54,7 +54,7 @@ try {
     singer.EnsureLoaded();
 
     //Parse notes and tempos
-    var myNotes = UtauUtil.PluginNotesToUNotes(plugin);
+    var myNotes = UtauUtil.PluginNotesToMyNotes(plugin);
     var tempos = UtauUtil.GetTempoList(plugin, myNotes);
     var timeAxis = new TimeAxis();
     timeAxis.BuildSegments(new UProject() { tempos = tempos });
@@ -99,7 +99,7 @@ try {
 
     //Prepare phonemizer input
     var noteIndexes = new List<int>();
-    var groups = new List<Phonemizer.Note[]>() { };
+    var groupList = new List<Phonemizer.Note[]>() { };
     List<MyNote> currentGroup = new List<MyNote>() { };
     foreach (var note in myNotes) {
         if (note.IsSlur()) {
@@ -108,15 +108,16 @@ try {
         } else {
             //End the previous group and start a new one
             if (currentGroup.Count > 0) {
-                groups.Add(currentGroup.Select(n => n.ToPhonemizerNote()).ToArray());
+                groupList.Add(currentGroup.Select(n => n.ToPhonemizerNote()).ToArray());
             }
             currentGroup.Clear();
             currentGroup.Add(note);
         }
     }
     if(currentGroup.Count > 0) {
-        groups.Add(currentGroup.Select(n => n.ToPhonemizerNote()).ToArray());
+        groupList.Add(currentGroup.Select(n => n.ToPhonemizerNote()).ToArray());
     }
+    var groupArray = groupList.ToArray();
 
     //Run phonemizer
     Phonemizer phonemizer = phonemizerSelected.Create();
@@ -124,15 +125,16 @@ try {
     phonemizer.SetTiming(timeAxis);
     var resultNotes = new List<MyNote>() { };
     var currTick = 0;
-    for (var i = 0; i < groups.Count; i++) {
-        var group = groups[i];
+    phonemizer.SetUp(groupArray);
+    for (var i = 0; i < groupArray.Length; i++) {
+        var group = groupArray[i];
         var result = phonemizer.Process(
-            groups[i],
-            i > 0 ? groups[i - 1].First() : null,
-            i < groups.Count - 1 ? groups[i + 1].First() : null,
-            (i > 0 && IsNeighbor(groups[i - 1], groups[i])) ? groups[i - 1].First() : null,
-            (i < groups.Count - 1 && IsNeighbor(groups[i], groups[i + 1])) ? groups[i + 1].First() : null,
-            i > 0 ? groups[i - 1] : null);
+            groupArray[i],
+            i > 0 ? groupArray[i - 1].First() : null,
+            i < groupArray.Length - 1 ? groupArray[i + 1].First() : null,
+            (i > 0 && IsNeighbor(groupArray[i - 1], groupArray[i])) ? groupArray[i - 1].First() : null,
+            (i < groupArray.Length - 1 && IsNeighbor(groupArray[i], groupArray[i + 1])) ? groupArray[i + 1].First() : null,
+            i > 0 ? groupArray[i - 1] : null);
         foreach(var phoneme in result.phonemes) {
             //ensure each phoneme is at least 5 ticks
             int position = Math.Max(phoneme.position + group[0].position, currTick + 5);
@@ -142,6 +144,7 @@ try {
                 duration = duration,
                 lyric = phoneme.phoneme,
                 tone = NoteByPosition[group[0].position].tone,
+                flags = NoteByPosition[group[0].position].flags,
             };
             resultNotes.Add(currNote);
         }
@@ -152,7 +155,7 @@ try {
             pair.First.duration = pair.Second.position - pair.First.position;
         }
     }
-    //Determine the pitch for each phoneme
+    //Determine tone for each phoneme
     //Currently we use the middle point on time axis of each phoneme.
     //If it belongs to a note's time range, the phoneme use the note's tone
     //otherwise it use the note it belongs to.
@@ -167,6 +170,7 @@ try {
         }
         if (myNotes[inputNoteIndex].position <= middlePoint && myNotes[inputNoteIndex].end >= middlePoint) {
             resultNote.tone = myNotes[inputNoteIndex].tone;
+            resultNote.flags = myNotes[inputNoteIndex].flags;
         }
     }
     if(resultNotes.Count == 0) {
@@ -188,10 +192,16 @@ try {
     foreach(var resultNote in resultNotes) {
         if(resultNote.position > currTick) {
             //Insert R note
-            InsertPluginNote(resultNote.position - currTick, 60, "R", plugin, insertLocation);
+            InsertPluginRest(resultNote.position - currTick, plugin, insertLocation);
             insertLocation++;
         }
-        InsertPluginNote(resultNote.duration, resultNote.tone, resultNote.lyric, plugin, insertLocation);
+        InsertPluginNote(
+            resultNote.duration, 
+            resultNote.tone, 
+            resultNote.lyric, 
+            resultNote.flags, 
+            plugin, 
+            insertLocation);
         insertLocation++;
         currTick = resultNote.end;
     }
@@ -233,10 +243,25 @@ void InsertPluginNote(
     int duration, 
     int tone, 
     string lyric, 
+    string flags,
     UtauPlugin plugin, 
     int insertLocation) {
     plugin.InsertNote(insertLocation);
     plugin.note[insertLocation].SetLength(duration);
     plugin.note[insertLocation].SetNoteNum(tone);
     plugin.note[insertLocation].SetLyric(lyric);
+    plugin.note[insertLocation].SetFlags(flags);
+}
+
+void InsertPluginRest(
+    int duration,
+    UtauPlugin plugin,
+    int insertLocation){
+    InsertPluginNote(
+        duration,
+        60,
+        "R",
+        "",
+        plugin,
+        insertLocation);
 }
