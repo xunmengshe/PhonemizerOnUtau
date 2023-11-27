@@ -9,7 +9,7 @@ namespace PhonemizerOnUtau {
         }
 
         //get a list of positions for each note
-        public static List<MyNote> PluginNotesToUNotes(UtauPlugin plugin) {
+        public static List<MyNote> PluginNotesToMyNotes(UtauPlugin plugin) {
             var myNotes = new List<MyNote>();
             var currentPosition = 0;
             foreach (var note in plugin.note) {
@@ -21,6 +21,7 @@ namespace PhonemizerOnUtau {
                         duration = duration,
                         tone = note.GetNoteNum(),
                         lyric = note.GetLyric(),
+                        flags = note.GetFlags(),
                         utauNote = note
                     };
                     myNotes.Add(myNote);

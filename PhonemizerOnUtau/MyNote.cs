@@ -12,6 +12,7 @@ namespace PhonemizerOnUtau {
         public int duration;
         public int tone;
         public string lyric = "";
+        public string flags = "";
         public Note? utauNote;
 
         public int end => position + duration;

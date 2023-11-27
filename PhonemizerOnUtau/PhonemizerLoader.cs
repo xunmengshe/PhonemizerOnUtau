@@ -39,12 +39,11 @@ namespace PhonemizerOnUtau
                     continue;
                 }
             }
-            /*
-            foreach (var type in GetType().Assembly.GetExportedTypes()) {
+            foreach (var type in PathManager.Inst.GetType().Assembly.GetExportedTypes()) {
                 if (!type.IsAbstract && type.IsSubclassOf(typeof(Phonemizer))) {
                     phonemizerFactories.Add(PhonemizerFactory.Get(type));
                 }
-            }*/
+            }
             return phonemizerFactories.OrderBy(factory => factory.tag).ToArray();
         }
     }
