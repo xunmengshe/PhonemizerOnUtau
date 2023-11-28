@@ -32,10 +32,13 @@ jobs:
     - name: restore x64
       run: dotnet restore PhonemizerOnUtau -r ${{ matrix.os.arch }}
 
-    - name: build x64
+    - name: build PhonemizerOnUtau x64
       run: dotnet publish PhonemizerOnUtau -c Release -r ${{ matrix.os.arch }} -o bin/${{ matrix.os.arch }}
 
-    - name: add openutau.plugins.builtin (windows)
+    - name: build OpenUtau.Plugins.Builtin x64
+      run: dotnet build Openutau.Plugins.Builtin -c Release -r ${{ matrix.os.arch }}
+
+    - name: add Openutau.Plugins.Builtin (windows)
       if: ${{ matrix.os.arch == 'win-x64' }}
       run: copy OpenUtau.Plugin.Builtin\bin\Release\netstandard2.1\OpenUtau.Plugin.Builtin.dll -Destination bin\${{ matrix.os.arch }}
     
