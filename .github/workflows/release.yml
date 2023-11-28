@@ -1,0 +1,61 @@
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version Number'
+        default: '0.0.0.0'
+        required: true
+        type: string
+      create-release:
+        type: boolean
+        description: "Create Release"
+
+jobs:
+  release:
+    runs-on: ${{ matrix.os.runs-on }}
+
+    strategy:
+      matrix:
+        os: 
+          - runs-on: windows-latest
+            arch: win-x64
+
+    steps:
+    - uses: actions/checkout@v1
+    
+    - name: Patch Versions
+      uses: justalemon/VersionPatcher@v0.7.1
+      with:
+        version: ${{ inputs.version }}
+        csproj-files: "PhonemizerOnUtau/*.csproj"
+
+    - name: restore x64
+      run: dotnet restore PhonemizerOnUtau -r ${{ matrix.os.arch }}
+
+    - name: build x64
+      run: dotnet publish PhonemizerOnUtau -c Release -r ${{ matrix.os.arch }} -o bin/${{ matrix.os.arch }}
+
+    - name: add openutau.plugins.builtin (windows)
+      if: ${{ matrix.os.arch == 'win-x64' }}
+      run: copy OpenUtau.Plugin.Builtin\bin\Release\netstandard2.1\OpenUtau.Plugin.Builtin.dll -Destination bin\${{ matrix.os.arch }}
+    
+    - name: add openutau.plugins.builtin (macos and linux)
+      if: ${{ matrix.os.arch == 'osx-x64' || matrix.os.arch == 'linux-x64' }}
+      run: cp OpenUtau.Plugin.Builtin/bin/Release/netstandard2.1/OpenUtau.Plugin.Builtin.dll bin/${{ matrix.os.arch }}
+
+    - name: compress x64
+      run: 7z a PhonemizerOnUtau-${{ matrix.os.arch }}-${{ inputs.version }}.zip ./bin/${{ matrix.os.arch }}/*
+     
+    - name: Upload artifact x64
+      uses: actions/upload-artifact@v1.0.0
+      with:
+        name: PhonemizerOnUtau-${{ matrix.os.arch }}-${{ inputs.version }}.zip
+        path: PhonemizerOnUtau-${{ matrix.os.arch }}-${{ inputs.version }}.zip
+
+    - name: Create release and upload artifact
+      if: ${{ inputs.create-release }}
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ inputs.version }}
+        files: |
+          PhonemizerOnUtau-${{ matrix.os.arch }}-${{ inputs.version }}.zip
