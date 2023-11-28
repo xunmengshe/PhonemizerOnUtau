@@ -35,14 +35,14 @@ jobs:
     - name: build PhonemizerOnUtau x64
       run: dotnet publish PhonemizerOnUtau -c Release -r ${{ matrix.os.arch }} -o bin/${{ matrix.os.arch }}
 
-    - name: build OpenUtau.Plugins.Builtin x64
-      run: dotnet build Openutau.Plugins.Builtin -c Release -r ${{ matrix.os.arch }}
+    - name: build OpenUtau.Plugin.Builtin x64
+      run: dotnet build OpenUtau.Plugin.Builtin -c Release -r ${{ matrix.os.arch }}
 
-    - name: add Openutau.Plugins.Builtin (windows)
+    - name: add OpenUtau.Plugin.Builtin (windows)
       if: ${{ matrix.os.arch == 'win-x64' }}
       run: copy OpenUtau.Plugin.Builtin\bin\Release\netstandard2.1\OpenUtau.Plugin.Builtin.dll -Destination bin\${{ matrix.os.arch }}
     
-    - name: add openutau.plugins.builtin (macos and linux)
+    - name: add OpenUtau.Plugin.builtin (macos and linux)
       if: ${{ matrix.os.arch == 'osx-x64' || matrix.os.arch == 'linux-x64' }}
       run: cp OpenUtau.Plugin.Builtin/bin/Release/netstandard2.1/OpenUtau.Plugin.Builtin.dll bin/${{ matrix.os.arch }}
 
