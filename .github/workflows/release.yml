@@ -40,11 +40,11 @@ jobs:
 
     - name: add OpenUtau.Plugin.Builtin (windows)
       if: ${{ matrix.os.arch == 'win-x64' }}
-      run: copy OpenUtau.Plugin.Builtin\bin\Release\netstandard2.1\OpenUtau.Plugin.Builtin.dll -Destination bin\${{ matrix.os.arch }}
+      run: copy OpenUtau.Plugin.Builtin\bin\Release\netstandard2.1\${{ matrix.os.arch }}\OpenUtau.Plugin.Builtin.dll -Destination bin\${{ matrix.os.arch }}
     
     - name: add OpenUtau.Plugin.builtin (macos and linux)
       if: ${{ matrix.os.arch == 'osx-x64' || matrix.os.arch == 'linux-x64' }}
-      run: cp OpenUtau.Plugin.Builtin/bin/Release/netstandard2.1/OpenUtau.Plugin.Builtin.dll bin/${{ matrix.os.arch }}
+      run: cp OpenUtau.Plugin.Builtin/bin/Release/netstandard2.1/${{ matrix.os.arch }}/OpenUtau.Plugin.Builtin.dll bin/${{ matrix.os.arch }}
 
     - name: compress x64
       run: 7z a PhonemizerOnUtau-${{ matrix.os.arch }}-${{ inputs.version }}.zip ./bin/${{ matrix.os.arch }}/*
