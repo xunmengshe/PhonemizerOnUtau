@@ -2,7 +2,6 @@
 using System.Reflection;
 using System.Text;
 
-using Serilog;
 using utauPlugin;
 
 using OpenUtau.Api;
@@ -121,6 +120,7 @@ try {
 
     //Run phonemizer
     Phonemizer phonemizer = phonemizerSelected.Create();
+    phonemizer.Testing = true;
     phonemizer.SetSinger(singer);
     phonemizer.SetTiming(timeAxis);
     var resultNotes = new List<MyNote>() { };
