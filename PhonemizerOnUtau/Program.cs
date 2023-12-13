@@ -52,6 +52,14 @@ try {
     var singer = new ClassicSinger(voicebank);
     singer.EnsureLoaded();
 
+    //Check if the user has selected any note
+    if(IsEmptyProject(plugin)) {
+        Console.WriteLine("Please select some notes before running this plugin.");
+        Console.WriteLine("Press Enter to exit.");
+        Console.ReadLine();
+        return;
+    }
+
     //Parse notes and tempos
     var myNotes = UtauUtil.PluginNotesToMyNotes(plugin);
     var tempos = UtauUtil.GetTempoList(plugin, myNotes);
@@ -181,7 +189,7 @@ try {
     bool hasPrev = plugin.note[0].GetNum() == "PREV";
     bool hasNext = plugin.note[^1].GetNum() == "NEXT";
     int insertLocation = hasPrev ? 1 : 0;
-    foreach (var pluginNoteIndex in Enumerable.Range(insertLocation, originalPluginNoteCount - (hasNext ? 1 : 0))) {
+    foreach (var pluginNoteIndex in Enumerable.Range(insertLocation, originalPluginNoteCount - insertLocation - (hasNext ? 1 : 0))) {
         plugin.DeleteNote(pluginNoteIndex);
     }
     currTick = 0;
@@ -211,6 +219,18 @@ try {
     Console.WriteLine("Press Enter to exit.");
     Console.ReadLine();
     return;
+}
+
+bool IsEmptyProject(UtauPlugin plugin){
+    if(plugin.note.Count == 0){
+        return true;
+    }
+    bool hasPrev = plugin.note[0].GetNum() == "PREV";
+    bool hasNext = plugin.note[^1].GetNum() == "NEXT";
+    if(plugin.note.Count - (hasPrev ? 1 : 0) - (hasNext ? 1 : 0) == 0) {
+        return true;
+    }
+    return false;
 }
 
 bool TryParsePhonemizerGroup(
