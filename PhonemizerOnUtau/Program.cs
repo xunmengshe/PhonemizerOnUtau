@@ -1,4 +1,5 @@
 ﻿// See https://aka.ms/new-console-template for more information
+using System.Globalization;
 using System.Reflection;
 using System.Text;
 
@@ -17,6 +18,8 @@ try {
     Console.WriteLine($"PhonemizerOnUtau {version}");
 
     //initialization
+    Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
+    Thread.CurrentThread.CurrentUICulture = CultureInfo.InvariantCulture;
     Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     var arg = Environment.GetCommandLineArgs();
 
