@@ -45,13 +45,18 @@ namespace OpenUtau.Core {
                 stopWatch.Stop();
                 Log.Information($"Search all singers: {stopWatch.Elapsed}");
             } catch (Exception e) {
-                Log.Error(e, "Failed to search singers.");
+                if (InitializationTask.Status == TaskStatus.Running) {
+                    Log.Error(e, "Failed to search singers.");
+                } else {
+                    var customEx = new MessageCustomizableException("Failed to search singers.", "<translate:errors.failed.searchsinger>", e);
+                    DocManager.Inst.ExecuteCmd(new ErrorMessageNotification(customEx));
+                }
                 Singers = new Dictionary<string, USinger>();
             }
         }
 
         public USinger GetSinger(string name) {
-            Log.Information(name);
+            Log.Information($"Attach singer to track: {name}");
             name = name.Replace("%VOICE%", "");
             if (Singers.ContainsKey(name)) {
                 return Singers[name];
@@ -119,7 +124,7 @@ namespace OpenUtau.Core {
             var singersInUse = new HashSet<USinger>();
             foreach(var track in project.tracks){
                 var singer = track.Singer;
-                if(singer != null){
+                if(singer != null && singer.Found && !singersInUse.Contains(singer)) {
                     singersInUse.Add(singer);
                 }
             }
@@ -127,11 +132,10 @@ namespace OpenUtau.Core {
             foreach(var singer in singersUsed){
                 if(!singersInUse.Contains(singer)){
                     singer.FreeMemory();
-                    singersUsed.Remove(singer);
                 }
             }
             //Update singers used
-            singersUsed.UnionWith(singersInUse);
+            singersUsed = singersInUse;
         }
     }
 }

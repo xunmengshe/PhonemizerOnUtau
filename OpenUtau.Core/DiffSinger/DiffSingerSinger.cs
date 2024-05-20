@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using K4os.Hash.xxHash;
 using OpenUtau.Classic;
 using OpenUtau.Core.Ustx;
 using Serilog;
@@ -44,6 +45,7 @@ namespace OpenUtau.Core.DiffSinger {
 
         public List<string> phonemes = new List<string>();
         public DsConfig dsConfig;
+        public ulong acousticHash;
         public InferenceSession acousticSession = null;
         public DsVocoder vocoder = null;
         public DsPitch pitchPredictor = null;
@@ -55,7 +57,7 @@ namespace OpenUtau.Core.DiffSinger {
             //Load Avatar
             if (Avatar != null && File.Exists(Avatar)) {
                 try {
-                    using (var stream = new FileStream(Avatar, FileMode.Open)) {
+                    using (var stream = new FileStream(Avatar, FileMode.Open, FileAccess.Read)) {
                         using (var memoryStream = new MemoryStream()) {
                             stream.CopyTo(memoryStream);
                             avatarData = memoryStream.ToArray();
@@ -76,12 +78,30 @@ namespace OpenUtau.Core.DiffSinger {
 
             //Load diffsinger config of a voicebank
             string configPath = Path.Combine(Location, "dsconfig.yaml");
-            dsConfig = Core.Yaml.DefaultDeserializer.Deserialize<DsConfig>(
-                File.ReadAllText(configPath, TextFileEncoding));
+            if(configPath != null && File.Exists(configPath)){
+                try {
+                    dsConfig = Core.Yaml.DefaultDeserializer.Deserialize<DsConfig>(
+                        File.ReadAllText(configPath, Encoding.UTF8));
+                } catch (Exception e) {
+                    Log.Error(e, $"Failed to load dsconfig.yaml for {Name} from {configPath}");
+                    dsConfig = new DsConfig();
+                }
+            } else {
+                Log.Error($"dsconfig.yaml not found for {Name} at {configPath}");
+                dsConfig = new DsConfig();
+            }
 
             //Load phoneme list
             string phonemesPath = Path.Combine(Location, dsConfig.phonemes);
-            phonemes = File.ReadLines(phonemesPath,TextFileEncoding).ToList();
+            if(phonemesPath != null && File.Exists(phonemesPath)){
+                try {
+                    phonemes = File.ReadLines(phonemesPath, TextFileEncoding).ToList();
+                } catch (Exception e){
+                    Log.Error(e, $"Failed to load phoneme list for {Name} from {phonemesPath}");
+                }
+            } else {
+                Log.Error($"phonemes file not found for {Name} at {phonemesPath}");
+            }
 
             var dummyOtoSet = new UOtoSet(new OtoSet(), Location);
             foreach (var phone in phonemes) {
@@ -126,7 +146,10 @@ namespace OpenUtau.Core.DiffSinger {
 
         public InferenceSession getAcousticSession() {
             if (acousticSession is null) {
-                acousticSession = Onnx.getInferenceSession(Path.Combine(Location, dsConfig.acoustic));
+                var acousticPath = Path.Combine(Location, dsConfig.acoustic);
+                var acousticBytes = File.ReadAllBytes(acousticPath);
+                acousticHash = XXH64.DigestOf(acousticBytes);
+                acousticSession = Onnx.getInferenceSession(acousticBytes);
             }
             return acousticSession;
         }

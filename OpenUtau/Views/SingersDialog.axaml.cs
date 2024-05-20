@@ -106,6 +106,16 @@ namespace OpenUtau.App.Views {
             }
         }
 
+        async void OnPublish(object sender, RoutedEventArgs args) {
+            var viewModel = (DataContext as SingersViewModel)!;
+            if (viewModel.Singer == null) {
+                return;
+            }
+            var dialog = new SingerPublishDialog();
+            dialog.DataContext = new SingerPublishViewModel(viewModel.Singer);
+            await dialog.ShowDialog(this);
+        }
+
         void OnSetUseFilenameAsAlias(object sender, RoutedEventArgs args) {
             var viewModel = (DataContext as SingersViewModel)!;
             viewModel.SetUseFilenameAsAlias();
@@ -239,7 +249,7 @@ namespace OpenUtau.App.Views {
             var sample = singer.Sample;
             if(sample!=null && File.Exists(sample)){
                 return sample;
-            } else if (singer.SingerType == USingerType.Classic) {
+            } else if (singer.SingerType == USingerType.Classic || singer.SingerType == USingerType.Voicevox) {
                 var path = singer.Location;
                 if(!Directory.Exists(path)){
                     return null;
@@ -353,19 +363,12 @@ namespace OpenUtau.App.Views {
         }
 
         Tuple<int, double[]>? LoadF0(string wavPath) {
-            if(String.IsNullOrEmpty(wavPath)){
-                //If the wav path is null (machine learning voicebank), return null.
-                return null;
-            }
-            string frqFile = Classic.VoicebankFiles.GetFrqFile(wavPath);
-            if (!File.Exists(frqFile)) {
-                return null;
-            }
             var frq = new Classic.Frq();
-            using (var fileStream = File.OpenRead(frqFile)) {
-                frq.Load(fileStream);
+            if (frq.Load(wavPath)) {
+                return Tuple.Create(frq.hopSize, frq.f0);
+            } else {
+                return null;
             }
-            return Tuple.Create(frq.hopSize, frq.f0);
         }
 
         void OnKeyDown(object sender, KeyEventArgs args) {

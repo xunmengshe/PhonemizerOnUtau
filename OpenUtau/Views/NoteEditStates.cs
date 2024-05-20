@@ -8,8 +8,8 @@ using Avalonia.Input;
 using OpenUtau.App.Controls;
 using OpenUtau.App.ViewModels;
 using OpenUtau.Core;
-using OpenUtau.Core.Util;
 using OpenUtau.Core.Ustx;
+using OpenUtau.Core.Util;
 
 namespace OpenUtau.App.Views {
     class KeyboardPlayState {
@@ -615,8 +615,7 @@ namespace OpenUtau.App.Views {
             var part = notesVm.Part;
             track = project.tracks[part!.trackNo];
             if (project == null || part == null ||
-                !track.TryGetExpression(
-                    project, notesVm.PrimaryKey, out descriptor)) {
+                !track.TryGetExpDescriptor(project, notesVm.PrimaryKey, out descriptor)) {
                 descriptor = null;
             }
         }
@@ -681,7 +680,7 @@ namespace OpenUtau.App.Views {
                 startValue = Math.Max(descriptor.min, Math.Min(descriptor.max, startValue));
             }
             foreach (var hit in hits) {
-                if (notesVm.Selection.Count > 0 && !notesVm.Selection.Contains(hit.phoneme.Parent)) {
+                if (Preferences.Default.LockUnselectedNotesExpressions && notesVm.Selection.Count > 0 && !notesVm.Selection.Contains(hit.phoneme.Parent)) {
                     continue;
                 }
                 var valuePoint = notesVm.TickToneToPoint(hit.note.position + hit.phoneme.position, 0);
@@ -727,8 +726,7 @@ namespace OpenUtau.App.Views {
             var part = notesVm.Part;
             track = project.tracks[part!.trackNo];
             if (project == null || part == null ||
-                !track.TryGetExpression(
-                    project, notesVm.PrimaryKey, out descriptor)) {
+                !track.TryGetExpDescriptor(project, notesVm.PrimaryKey, out descriptor)) {
                 descriptor = null;
             }
         }
@@ -760,15 +758,14 @@ namespace OpenUtau.App.Views {
                 return;
             }
             foreach (var hit in hits) {
-                if (notesVm.Selection.Count > 0 && !notesVm.Selection.Contains(hit.phoneme.Parent)) {
+                if (Preferences.Default.LockUnselectedNotesExpressions && notesVm.Selection.Count > 0 && !notesVm.Selection.Contains(hit.phoneme.Parent)) {
                     continue;
                 }
-                float value = hit.phoneme.GetExpression(notesVm.Project, track, key).Item1;
-                if (value == descriptor.defaultValue) {
+                if (!hit.phoneme.GetExpression(notesVm.Project, track, key).Item2) {
                     continue;
                 }
                 DocManager.Inst.ExecuteCmd(new SetPhonemeExpressionCommand(
-                    notesVm.Project, track, notesVm.Part, hit.phoneme, key, descriptor.defaultValue));
+                    notesVm.Project, track, notesVm.Part, hit.phoneme, key, null));
             }
         }
         private void ResetCurveExp(IPointer pointer, Point point) {

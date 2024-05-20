@@ -25,6 +25,7 @@ namespace OpenUtau.Classic {
             Ustx.ATK,
             Ustx.DEC,
             Ustx.MOD,
+            Ustx.MODP,
             Ustx.ALT,
         };
 
@@ -106,7 +107,7 @@ namespace OpenUtau.Classic {
                             result.samples = Wave.GetSamples(waveStream.ToSampleProvider().ToMono(1, 0));
                         }
                     } catch (Exception e) {
-                        Log.Error(e, "Failed to render.");
+                        Log.Error(e, $"Failed to render: failed to open {wavPath}");
                     }
                 }
                 if (result.samples == null) {
